@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentinel-2 Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+<!-- Leaflet Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Kanit', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+header { background: linear-gradient(135deg, #0d1b2a, #1a3a5c); color: white; padding: 18px 32px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+header h1 { font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+.credit { font-size: 0.75rem; opacity: 0.6; }
+.map-wrapper { padding: 20px 24px 0; max-width: 1300px; margin: 0 auto; }
+.layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px 24px 24px; max-width: 1300px; margin: 0 auto; }
+.panel { background: #1a1d27; border-radius: 14px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); border: 1px solid #2d3148; }
+.section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #60a5fa; border-bottom: 2px solid #2d3148; padding-bottom: 8px; margin-bottom: 14px; margin-top: 18px; }
+.section-title:first-child { margin-top: 0; }
+.form-group { margin-bottom: 12px; }
+label { font-size: 0.8rem; color: #94a3b8; display: block; margin-bottom: 4px; }
+input[type=text], input[type=password], input[type=number], input[type=date], select {
+    width: 100%; padding: 8px 11px; border: 1px solid #2d3148; border-radius: 8px;
+    font-size: 0.9rem; font-family: 'Kanit', sans-serif; transition: border 0.2s;
+    background: #0f1117; color: #e2e8f0;
+}
+input:focus, select:focus { outline: none; border-color: #60a5fa; background: #141720; }
+input[type="password"] { letter-spacing: 2px; }
+select option { background: #1a1d27; color: #e2e8f0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bands-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.band-item { display: flex; align-items: center; gap: 5px; font-size: 0.82rem; cursor: pointer; color: #cbd5e1; }
+.band-item input { width: auto; accent-color: #60a5fa; }
+.btn-search { width: 100%; padding: 11px; background: #2563eb; color: white; border: none; border-radius: 9px; font-size: 0.95rem; font-family: 'Kanit', sans-serif; cursor: pointer; margin-top: 16px; transition: background 0.2s; font-weight: 600; }
+.btn-search:hover { background: #1d4ed8; }
+.btn-search:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+.status-bar { padding: 10px 14px; border-radius: 8px; font-size: 0.87rem; margin-top: 12px; display: none; }
+.status-bar.success { background: #064e3b; color: #6ee7b7; display: block; }
+.status-bar.error { background: #450a0a; color: #fca5a5; display: block; }
+.status-bar.loading { background: #1e3a5f; color: #93c5fd; display: block; }
+.results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.results-header h2 { font-size: 1rem; color: #e2e8f0; }
+.result-count { font-size: 0.82rem; color: #64748b; }
+.result-card { border: 1px solid #2d3148; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; transition: box-shadow 0.2s; background: #141720; }
+.result-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.4); border-color: #3d4f7c; }
+.result-name { font-size: 0.82rem; font-weight: 600; color: #93c5fd; word-break: break-all; margin-bottom: 8px; }
+.meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+.meta-item { background: #0f1117; border-radius: 6px; padding: 6px 10px; border: 1px solid #2d3148; }
+.meta-label { font-size: 0.7rem; color: #64748b; }
+.meta-value { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+.btn-dl { padding: 8px 18px; background: #059669; color: white; border: none; border-radius: 7px; cursor: pointer; font-size: 0.85rem; font-family: 'Kanit', sans-serif; font-weight: 600; white-space: nowrap; transition: background 0.2s; }
+.btn-dl:hover { background: #047857; }
+.btn-dl:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+.dl-status { font-size: 0.8rem; margin-top: 8px; padding: 6px 10px; border-radius: 6px; display: none; }
+.dl-status.loading { background: #1e3a5f; color: #93c5fd; display: block; }
+.dl-status.success { background: #064e3b; color: #6ee7b7; display: block; }
+.dl-status.error { background: #450a0a; color: #fca5a5; display: block; }
+.empty-state { text-align: center; padding: 60px 20px; color: #4b5563; }
+.empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+.select-all-row { display: flex; gap: 10px; margin-bottom: 8px; }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; border: 1px solid #3d4f7c; color: #93c5fd; background: transparent; border-radius: 5px; cursor: pointer; font-family: 'Kanit', sans-serif; }
+.btn-sm:hover { background: #1e3a5f; }
+#map { height: 300px; border-radius: 10px; z-index: 0; }
+.popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.popup-box { background: #1a1d27; border: 1px solid #450a0a; border-radius: 14px; padding: 28px 32px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+.popup-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.popup-title { font-size: 1.1rem; font-weight: 700; color: #fca5a5; margin-bottom: 10px; }
+.popup-msg { font-size: 0.88rem; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; word-break: break-all; }
+.popup-btn { padding: 9px 28px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-family: 'Kanit', sans-serif; cursor: pointer; }
+.popup-btn:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>🛰️ Sentinel-2 Downloader</h1>
+    <span class="credit">Created by SATJA v1.0</span>
+</header>
+
+<!-- Map -->
+<div class="map-wrapper">
+    <div class="panel">
+        <div class="section-title">🗺️ Map Preview</div>
+        <div id="map"></div>
+        <div style="font-size:0.78rem; color:#64748b; margin-top:8px;">
+            📍 Click on map to set coordinates, or enter Lat/Lon manually
+        </div>
+    </div>
+</div>
+
+<div class="layout">
+    <!-- LEFT PANEL -->
+    <div class="panel">
+
+        <div class="section-title">🔐 Copernicus Account</div>
+        <div class="form-group">
+            <label>Username (Email)</label>
+            <input type="text" id="username" placeholder="your_email@example.com">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="••••••••">
+        </div>
+
+        <div class="section-title">📍 Area of Interest</div>
+        <div class="row2">
+            <div class="form-group">
+                <label>Latitude</label>
+                <input type="number" id="lat" placeholder="13.8621" step="any">
+            </div>
+            <div class="form-group">
+                <label>Longitude</label>
+                <input type="number" id="lon" placeholder="100.5144" step="any">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Area Size (km × km)</label>
+            <input type="number" id="km" value="10" min="1" max="200">
+        </div>
+
+        <div class="section-title">📅 Date Range</div>
+        <div class="row2">
+            <div class="form-group">
+                <label>Start Date</label>
+                <input type="date" id="start_date">
+            </div>
+            <div class="form-group">
+                <label>End Date</label>
+                <input type="date" id="end_date">
+            </div>
+        </div>
+
+        <div class="section-title">⚙️ Filter Settings</div>
+        <div class="row2">
+            <div class="form-group">
+                <label>Max Cloud Cover (%)</label>
+                <input type="number" id="max_cloud" value="20" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>Processing Level</label>
+                <select id="level">
+                    <option value="2A">L2A (Surface Reflectance)</option>
+                    <option value="1C">L1C (Top of Atmosphere)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-title">🎛️ Bands Selection</div>
+        <div class="select-all-row">
+            <button class="btn-sm" onclick="selectAllBands()">Select All</button>
+            <button class="btn-sm" onclick="clearAllBands()">Clear All</button>
+        </div>
+        <div class="bands-grid" id="bands-grid"></div>
+
+        <div class="section-title">💾 Save Location</div>
+        <div class="form-group">
+            <label>Download Folder Path</label>
+            <input type="text" id="save_dir" value="downloads" placeholder="e.g. D:\Sentinel2\downloads">
+        </div>
+
+        <button class="btn-search" onclick="searchImages()">🔍 Search Images</button>
+        <div id="search-status" class="status-bar"></div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel">
+        <div class="results-header">
+            <h2>📋 Search Results</h2>
+            <span class="result-count" id="result-count"></span>
+        </div>
+        <div id="results-list">
+            <div class="empty-state">
+                <div class="icon">🛰️</div>
+                <div>Set your parameters and click <strong>Search Images</strong></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const BANDS = ["AOT","B01","B02","B03","B04","B05","B06","B07","B08","B8A","B09","B10","B11","B12","SCL","TCI","WVP"];
+    const DEFAULT_BANDS = ["B02","B03","B04","B08"];
+
+    const grid = document.getElementById("bands-grid");
+    BANDS.forEach(b => {
+        const label = document.createElement("label");
+        label.className = "band-item";
+        label.innerHTML = `<input type="checkbox" value="${b}" ${DEFAULT_BANDS.includes(b) ? "checked" : ""}> ${b}`;
+        grid.appendChild(label);
+    });
+
+    function selectAllBands() {
+        document.querySelectorAll("#bands-grid input").forEach(cb => cb.checked = true);
+    }
+    function clearAllBands() {
+        document.querySelectorAll("#bands-grid input").forEach(cb => cb.checked = false);
+    }
+    function getSelectedBands() {
+        return [...document.querySelectorAll("#bands-grid input:checked")].map(cb => cb.value);
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    document.getElementById("end_date").value = today;
+    document.getElementById("start_date").value = monthAgo;
+
+    function showStatus(id, msg, type) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.className = "status-bar " + type;
+    }
+
+    let currentToken = "";
+
+    // ===== Leaflet Map =====
+    const map = L.map("map").setView([13.8621, 100.5144], 10);
+
+    // Base Layers
+    const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors"
+    });
+
+    const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "© Esri, Maxar, Earthstar Geographics"
+    });
+
+    // เริ่มต้นด้วย OSM
+    osm.addTo(map);
+
+    // ปุ่มสลับ Layer
+    L.control.layers({
+        "🗺️ Street Map": osm,
+        "🛰️ Satellite": satellite
+    }).addTo(map);
+
+    // แสดงพิกัดเมื่อเลื่อน mouse
+    const coordDisplay = L.control({ position: "bottomleft" });
+    coordDisplay.onAdd = function() {
+        this._div = L.DomUtil.create("div", "coord-display");
+        this._div.innerHTML = "🖱️ Move mouse on map";
+        this._div.style.cssText = "background:#1a1d27; color:#93c5fd; padding:5px 10px; border-radius:6px; font-size:0.78rem; font-family:'Kanit',sans-serif; border:1px solid #2d3148;";
+        return this._div;
+    };
+    coordDisplay.addTo(map);
+
+    map.on("mousemove", function(e) {
+        coordDisplay._div.innerHTML = `📍 Lat: ${e.latlng.lat.toFixed(6)}, Lon: ${e.latlng.lng.toFixed(6)}`;
+    });
+    map.on("mouseout", function() {
+        coordDisplay._div.innerHTML = "🖱️ Move mouse on map";
+    });
+
+    let marker = null;
+    let rectangle = null;
+
+    function updateMap(lat, lon, km) {
+        const delta = km / 2 / 111;
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lon]).addTo(map)
+            .bindPopup(`📍 Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}<br>📐 ${km} x ${km} km`)
+            .openPopup();
+        if (rectangle) map.removeLayer(rectangle);
+        rectangle = L.rectangle([
+            [lat - delta, lon - delta],
+            [lat + delta, lon + delta]
+        ], { color: "#60a5fa", weight: 2, fillOpacity: 0.1 }).addTo(map);
+        map.setView([lat, lon], 11);
+    }
+
+    map.on("click", function(e) {
+        const lat = e.latlng.lat.toFixed(6);
+        const lon = e.latlng.lng.toFixed(6);
+        document.getElementById("lat").value = lat;
+        document.getElementById("lon").value = lon;
+        updateMap(parseFloat(lat), parseFloat(lon), parseFloat(document.getElementById("km").value) || 10);
+    });
+
+    ["lat", "lon", "km"].forEach(id => {
+        document.getElementById(id).addEventListener("input", function() {
+            const lat = parseFloat(document.getElementById("lat").value);
+            const lon = parseFloat(document.getElementById("lon").value);
+            const km  = parseFloat(document.getElementById("km").value) || 10;
+            if (lat && lon) updateMap(lat, lon, km);
+        });
+    });
+
+    updateMap(13.8621, 100.5144, 10);
+
+    // ===== Search & Download =====
+    async function searchImages() {
+        const username   = document.getElementById("username").value.trim();
+        const password   = document.getElementById("password").value.trim();
+        const lat        = document.getElementById("lat").value;
+        const lon        = document.getElementById("lon").value;
+        const km         = document.getElementById("km").value;
+        const start_date = document.getElementById("start_date").value;
+        const end_date   = document.getElementById("end_date").value;
+        const max_cloud  = document.getElementById("max_cloud").value;
+        const level      = document.getElementById("level").value;
+
+        if (!username || !password || !lat || !lon) {
+            showErrorPopup(data.error);
+            return;
+        }
+
+        showStatus("search-status", "⏳ Searching images...", "loading");
+        document.getElementById("results-list").innerHTML = "";
+        document.getElementById("result-count").textContent = "";
+
+        const res = await fetch("/search", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({username, password, lat, lon, km, start_date, end_date, max_cloud, level})
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            showStatus("search-status", "❌ " + data.error, "error");
+            return;
+        }
+
+        currentToken = data.token;
+
+        if (data.results.length === 0) {
+            showStatus("search-status", "⚠️ No images found. Try expanding the date range or increasing cloud cover.", "error");
+            document.getElementById("results-list").innerHTML = `<div class="empty-state"><div class="icon">🌥️</div><div>No images found for the selected criteria.</div></div>`;
+            return;
+        }
+
+        showStatus("search-status", `✅ Found ${data.results.length} image(s).`, "success");
+        document.getElementById("result-count").textContent = `${data.results.length} results`;
+        renderResults(data.results);
+    }
+
+    function showErrorPopup(msg) {
+        const overlay = document.createElement("div");
+        overlay.className = "popup-overlay";
+        overlay.innerHTML = `
+            <div class="popup-box">
+                <div class="popup-icon">❌</div>
+                <div class="popup-title">Error</div>
+                <div class="popup-msg">${msg}</div>
+                <button class="popup-btn" onclick="this.closest('.popup-overlay').remove()">Close</button>
+            </div>`;
+        document.body.appendChild(overlay);
+    }
+
+    function renderResults(results) {
+        const list = document.getElementById("results-list");
+        list.innerHTML = "";
+        results.forEach(item => {
+            const div = document.createElement("div");
+            div.className = "result-card";
+            div.innerHTML = `
+                <div class="result-name">📄 ${item.name}</div>
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <div class="meta-label">📅 Date & Time</div>
+                        <div class="meta-value">${item.date}</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">☁️ Cloud Cover</div>
+                        <div class="meta-value">${item.cloud}%</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">📐 Area Size</div>
+                        <div class="meta-value">${item.size} km</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">🛰️ Processing Level</div>
+                        <div class="meta-value">L${item.level}</div>
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end;">
+                    <button class="btn-dl" onclick="downloadImage('${item.id}', '${item.name}', this)">⬇️ Download</button>
+                </div>
+                <div class="dl-status" id="dl-${item.id}"></div>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    async function downloadImage(id, name, btn) {
+        const save_dir = document.getElementById("save_dir").value || "downloads";
+        const bands    = getSelectedBands();
+        const statusEl = document.getElementById(`dl-${id}`);
+
+        // เปลี่ยนปุ่มเป็น Stop
+        btn.style.background = "#dc2626";
+        btn.textContent = "⏹️ Stop";
+        btn.onclick = () => stopDownload(id, name, btn);
+        statusEl.textContent = "⏳ Download in progress, please wait...";
+        statusEl.className = "dl-status loading";
+
+        const res = await fetch("/download", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({id, name, token: currentToken, save_dir, bands})
+        });
+        const data = await res.json();
+
+        if (data.stopped) {
+            btn.style.background = "#059669";
+            btn.textContent = "⬇️ Download";
+            btn.onclick = () => downloadImage(id, name, btn);
+            statusEl.textContent = "⛔ Download cancelled";
+            statusEl.className = "dl-status error";
+        } else if (data.success) {
+            btn.textContent = "✅ Done";
+            btn.style.background = "#374151";
+            btn.onclick = null;
+            btn.disabled = true;
+            statusEl.textContent = `✅ Saved to: ${data.path}`;
+            statusEl.className = "dl-status success";
+        } else {
+            btn.style.background = "#059669";
+            btn.textContent = "⬇️ Retry";
+            btn.onclick = () => downloadImage(id, name, btn);
+            statusEl.textContent = "❌ Error: " + data.error;
+            statusEl.className = "dl-status error";
+        }
+    }
+
+    async function stopDownload(id, name, btn) {
+        await fetch("/stop", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({id})
+        });
+        btn.textContent = "⏳ Stopping...";
+        btn.disabled = true;
+    }
+</script>
+</body>
+</html>
